@@ -1,7 +1,7 @@
 <script>
-import { mapActions } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 
-const { version, secrets } = process.env.PROPERTIES;
+const { version } = process.env.PROPERTIES;
 
 export default {
   data() {
@@ -11,25 +11,20 @@ export default {
   },
 
   computed: {
+    ...mapState(['messages']),
     version: () => version,
   },
 
   methods: {
-    ...mapActions(['getTwitchJs', 'getChatClient']),
+    ...mapActions(['connectChat', 'chatSay']),
 
-    say() {
-      this.chatClient.chat.say('brain_bacon', this.message);
+    async say() {
+      await this.chatSay(this.message);
     },
   },
 
-
   async mounted() {
-    this.TwitchJs = await this.getTwitchJs();
-    this.chatClient = await this.getChatClient();
-    let { chat } = this.chatClient;
-    await chat.connect();
-    await chat.join(secrets.channel);
-    // chat.say('brain_bacon', 'Hello world');
+    await this.connectChat();
   },
 };
 </script>
@@ -39,5 +34,7 @@ Article
   form(@submit.prevent="say")
     input(type="text" v-model="message")
     button(type="submit") submit
+  div(v-for="message in messages")
+    p {{ message.username }}: {{ message.message }}
   div {{ version }}
 </template>

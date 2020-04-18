@@ -3,31 +3,34 @@ import Vuex from 'vuex';
 import axios from 'axios';
 import TwitchJs from 'twitch-js';
 
-const {
-  client,
-  secret,
-  oauth,
-  username,
-} = process.env.PROPERTIES.secrets;
+const { secrets } = process.env.PROPERTIES;
 
 Vue.use(Vuex);
 
 let initTwitchJs;
 let chatClient;
+let chat;
 
 export default new Vuex.Store({
   state: {
     token: null,
     expires: null,
     type: null,
+    messages: [],
   },
+
   mutations: {
     setToken(state, { access_token, expires_in, token_type }) {
       state.token = access_token;
       state.expires = expires_in;
       state.type = token_type;
     },
+
+    addMessage(state, message) {
+      state.messages.push(message);
+    },
   },
+
   actions: {
     async getToken({ commit }) {
       try {
@@ -36,8 +39,8 @@ export default new Vuex.Store({
           method: 'post',
           params: {
             grant_type: 'client_credentials',
-            client_id: client,
-            client_secret: secret,
+            client_id: secrets.client,
+            client_secret: secrets.secret,
             scopes: '',
           },
         });
@@ -66,11 +69,40 @@ export default new Vuex.Store({
     async getChatClient() {
       if (!chatClient) {
         chatClient = new TwitchJs({
-          username,
-          token: oauth,
+          username: secrets.username,
+          token: secrets.oauth,
         });
       }
       return chatClient;
+    },
+
+    /* eslint-disable */
+    onMessage({ commit }, message) {
+      // { channel, command, event, isSelf, message, tags, color, timestamp, username }
+      if (!message.isSelf && !!message.message && message.message !== '' && message.channel === `#${secrets.channel}`) {
+        commit('addMessage', message);
+      }
+    },
+    /* eslint-enable */
+
+    async connectChat({ dispatch }) {
+      if (!chatClient) {
+        await dispatch('getChatClient');
+      }
+      if (!chat) {
+        chat = chatClient.chat;
+        await chat.connect();
+        await chat.join(secrets.channel);
+        chat.on('*', message => dispatch('onMessage', message));
+        console.log(chat.events);
+      }
+    },
+
+    async chatSay({ dispatch }, message) {
+      if (!chat) {
+        await dispatch('connectChat');
+      }
+      chat.say(secrets.channel, message);
     },
   },
 });
